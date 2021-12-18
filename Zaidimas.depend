@@ -1,0 +1,7 @@
+# depslib dependency file v1.0
+1639694171 source:d:\kita\univeras\windowsapi\zaidimas\main.cpp
+	<tchar.h>
+	<windows.h>
+	<cstdio>
+	<iostream>
+
