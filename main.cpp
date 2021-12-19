@@ -8,21 +8,47 @@
 #define MENU_EXIT_TO_MENU 2
 #define MENU_QUIT 3
 
+// Grid is always square, so 10x10
+#define GRID_SIZE 10
+#define MINE_COUNT 30
+
 #include <tchar.h>
 #include <windows.h>
 #include <cstdio>
 #include <iostream>
+#include <stdlib.h>
+#include <time.h>
+#include <string>
 
 void addToolbars(HWND hwnd);
-void handleToolbarClicks(HWND hwnd, WPARAM wParam);
+void handleClicks(HWND hwnd, WPARAM wParam);
 void addMenu(HWND hwnd);
-void addBackground(HWND hwnd);
+void loadImage();
+BOOL CALLBACK destroyChildCallback(HWND hwnd, LPARAM lParam);
+void startGame(HWND hwnd);
+void clearScreen(HWND hwnd);
+void clearGrid();
+void printGrid();
+void generateGrid();
+void generateButtons(HWND hwnd);
+void cellClicked(int id, HWND hwnd);
+void revealCell(int x, int y, HWND hwnd);
+int getNeighborsValue(int x, int y);
+void clearRecursion(int x, int y, HWND hwnd);
 
 /*  Declare Windows procedure  */
 LRESULT CALLBACK WindowProcedure (HWND, UINT, WPARAM, LPARAM);
 
 /*  Make the class name into a global variable  */
 TCHAR szClassName[ ] = _T("CodeBlocksWindowsApp");
+
+HWND hPlay, hQuit, hLogo;
+HBITMAP hLogoImage;
+int grid[GRID_SIZE][GRID_SIZE];
+HWND hGrid[GRID_SIZE][GRID_SIZE];
+bool checkedGrid[GRID_SIZE][GRID_SIZE] = {0};
+
+bool created = false;
 
 int WINAPI WinMain (HINSTANCE hThisInstance,
                      HINSTANCE hPrevInstance,
@@ -61,7 +87,7 @@ int WINAPI WinMain (HINSTANCE hThisInstance,
     hwnd = CreateWindowEx (
            0,                   /* Extended possibilites for variation */
            szClassName,         /* Classname */
-           _T("Windows API Game"),       /* Title Text */
+           _T("Minesweeper"),       /* Title Text */
            WS_OVERLAPPEDWINDOW | WS_VISIBLE, /* default window */
            CW_USEDEFAULT,       /* Windows decides the position */
            CW_USEDEFAULT,       /* where the window ends up on the screen */
@@ -98,7 +124,7 @@ LRESULT CALLBACK WindowProcedure (HWND hwnd, UINT message, WPARAM wParam, LPARAM
     {
         case WM_COMMAND:
             // handle button clicks by id
-            handleToolbarClicks(hwnd, wParam);
+            handleClicks(hwnd, wParam);
             break;
         case WM_CREATE:
             addToolbars(hwnd);
@@ -109,6 +135,7 @@ LRESULT CALLBACK WindowProcedure (HWND hwnd, UINT message, WPARAM wParam, LPARAM
             PostQuitMessage (0);       /* send a WM_QUIT to the message queue */
             break;
         default:                      /* for messages that we don't deal with */
+            //printf("%d \n", message);
             return DefWindowProc (hwnd, message, wParam, lParam);
     }
 
@@ -129,32 +156,195 @@ void addToolbars(HWND hwnd){
     SetMenu(hwnd, hMenu);
 }
 
-void handleToolbarClicks(HWND hwnd, WPARAM wParam) {
+void handleClicks(HWND hwnd, WPARAM wParam) {
 
     switch (wParam)
     {
         case MENU_NEW_GAME:
+            startGame(hwnd);
             break;
         case MENU_EXIT_TO_MENU:
+            clearScreen(hwnd);
+            addMenu(hwnd);
             break;
         case MENU_QUIT:
             DestroyWindow(hwnd);
             break;
         default:
+            if(wParam >= 1000) cellClicked((int) wParam, hwnd);
             break;
     }
 }
 
 void addMenu(HWND hwnd) {
-    HWND playButton = CreateWindowW(L"button", L"Play", WS_CHILD | WS_VISIBLE, 190, 180, 100, 30, hwnd, NULL, NULL, NULL);
-    HWND quitButton = CreateWindowW(L"button", L"Quit", WS_CHILD | WS_VISIBLE, 210, 240, 60, 30, hwnd, NULL, NULL, NULL);
-    HWND credits = CreateWindowW(L"static", L"Made by Dovydas Puluikis", WS_CHILD | WS_VISIBLE, 310, 420, 180, 20, hwnd, NULL, NULL, NULL);
+    loadImage();
+    hLogo = CreateWindowW(L"static", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP, -7, -15, 500, 500, hwnd, NULL, NULL, NULL);
+    hPlay = CreateWindowW(L"button", L"Play", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 190, 180, 100, 30, hwnd, (HMENU) MENU_NEW_GAME, NULL, NULL);
+    hQuit = CreateWindowW(L"button", L"Quit", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 210, 240, 60, 30, hwnd, (HMENU) MENU_QUIT, NULL, NULL);
+    CreateWindowW(L"static", L"Made by Dovydas Puluikis", WS_CHILD | WS_VISIBLE, 310, 420, 180, 20, hwnd, NULL, NULL, NULL);
+
+    SendMessageW(hLogo, STM_SETIMAGE, IMAGE_BITMAP,(LPARAM) hLogoImage);
 }
 
-void addBackground(HWND hwnd) {
+void loadImage() {
+    hLogoImage = (HBITMAP) LoadImageW(NULL, L"menu.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
+}
 
-    //HBITMAP hImage = (HBITMAP)LoadImage(NULL, L"menu.bmp", IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-    //HWND hImageView = CreateWindowEx(NULL, L"STATIC", NULL, SS_BITMAP | WS_VISIBLE | WS_CHILD, 0, 00, 500, 244, hwnd, (HMENU)IMAGE_VIEW, GetModuleHandle(NULL), NULL);
-    //SendMessage(hImageView, STM_SETIMAGE, IMAGE_BITMAP, (LPARAM)hImage);
+void startGame(HWND hwnd) {
+    clearScreen(hwnd);
+    clearGrid();
+    generateGrid();
+    printGrid();
+    generateButtons(hwnd);
+}
+
+void clearScreen(HWND hwnd) {
+    EnumChildWindows(hwnd, destroyChildCallback, NULL);
+}
+
+BOOL CALLBACK destroyChildCallback(HWND hwnd, LPARAM lParam){
+    if(hwnd != NULL) {
+        DestroyWindow(hwnd);
+    }
+    return true;
+}
+
+void clearGrid() {
+    for(int i = 0; i < GRID_SIZE; i++){
+        for(int j = 0; j < GRID_SIZE; j++){
+            grid[i][j] = 0;
+            checkedGrid[i][j] = false;
+        }
+    }
+}
+
+void printGrid() {
+    for(int i = 0; i < GRID_SIZE; i++){
+        for(int j = 0; j < GRID_SIZE; j++){
+            std::cout << grid[i][j] << " ";
+        }
+        std::cout << std::endl;
+    }
 
 }
+
+void generateGrid() {
+    srand (time(NULL));
+    int numberOfMines = MINE_COUNT;
+    for(int i = 0; i < numberOfMines; i++){
+        int mineX = rand() % GRID_SIZE;
+        int mineY = rand() % GRID_SIZE;
+        if(grid[mineX][mineY] > -1){
+            for(int x = -1; x <= 1; x++){
+                for(int y = -1; y <=1; y++){
+                    if(x == 0 && y == 0){
+                        grid[mineX][mineY] = -20;
+                    }
+                    else if(grid[mineX + x][mineY + y] > -1) grid[mineX + x][mineY + y] += 1;
+                }
+            }
+        }
+    }
+}
+
+void generateButtons(HWND hwnd) {
+
+    int grid_length = sizeof(GRID_SIZE) - 2;
+    for(int i = 0; i < GRID_SIZE; i++){
+        for(int j = 0; j < GRID_SIZE; j++){
+            int x_length = std::to_string(i).length();
+            int y_length = std::to_string(j).length();
+            std::string x_string = std::string(grid_length - std::min(grid_length, x_length), '0') + std::to_string(i);
+            std::string y_string = std::string(grid_length - std::min(grid_length, y_length), '0') + std::to_string(j);
+            int identifier = std::stoi("1" + x_string + y_string);
+            hGrid[i][j] = CreateWindowW(L"button", NULL, WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 400/GRID_SIZE*i, 400/GRID_SIZE*j, 400/GRID_SIZE, 400/GRID_SIZE, hwnd, (HMENU) identifier, NULL, NULL);
+        }
+    }
+}
+
+void cellClicked(int id, HWND hwnd) {
+
+    std::string id_string = std::to_string(id);
+    id_string.erase(0, 1);
+    std::string x_string = id_string.substr(0, id_string.length()/2);
+    std::string y_string = id_string.substr(id_string.length()/2);
+    int x = std::stoi(x_string);
+    int y = std::stoi(y_string);
+    //std::cout << grid[x][y] << std::endl;
+    if(grid[x][y] > 0) {
+        DestroyWindow(hGrid[x][y]);
+        hGrid[x][y] = 0;
+        revealCell(x, y, hwnd);
+    } else if (grid[x][y] == 0){
+        //DestroyWindow(hGrid[x][y]);
+        clearRecursion(x, y, hwnd);
+    } else {
+        DestroyWindow(hGrid[x][y]);
+        hGrid[x][y] = 0;
+        revealCell(x, y, hwnd);
+    }
+
+}
+
+void revealCell(int x, int y, HWND hwnd) {
+    if(!checkedGrid[x][y]){
+        std::string path;
+        if(grid[x][y] == 0 && hGrid[x][y] != 0) {
+            DestroyWindow(hGrid[x][y]);
+            hGrid[x][y] = 0;
+            return;
+        }
+        else if(grid[x][y] < 0) path = "images\\mine-ceil.bmp";
+        else path = "images\\open" + std::to_string(grid[x][y]) + ".bmp";
+        //std::cout << x << " " << y << std::endl;
+        //std::cout << path << std::endl;
+        std::wstring widePath =  std::wstring(path.begin(), path.end());
+        const wchar_t* cPath = widePath.c_str();
+        HBITMAP hImage = (HBITMAP) LoadImageW(NULL, cPath, IMAGE_BITMAP, 400/GRID_SIZE, 400/GRID_SIZE, LR_LOADFROMFILE);
+        HWND wImage = CreateWindowW(L"static", NULL, WS_CHILD | WS_VISIBLE | SS_BITMAP, 400/GRID_SIZE*x, 400/GRID_SIZE*y, 400/GRID_SIZE, 400/GRID_SIZE, hwnd, NULL, NULL, NULL);
+        SendMessageW(wImage, STM_SETIMAGE, IMAGE_BITMAP,(LPARAM) hImage);
+        //std::cout << grid[x][y] << std::endl;
+    }
+}
+
+int getNeighborsValue(int x, int y){
+    int sum = 0;
+    for(int i = -1; i <= 1; i++){
+        for(int j = -1; j <= 1; j++){
+            sum += grid[x + i][y + j];
+        }
+    }
+    return sum;
+}
+
+void clearRecursion(int x, int y, HWND hwnd) {
+
+    if(x < GRID_SIZE && y < GRID_SIZE && checkedGrid[x][y] == false && x >= 0 && y >=0 && grid[x][y] >= 0) {
+        DestroyWindow(hGrid[x][y]);
+        revealCell(x, y, hwnd);
+        checkedGrid[x][y] = true;
+        if(getNeighborsValue(x, y) >= 0) {
+            for(int i = - 1; i <=1; i++){
+                for(int j = -1; j<=1; j++){
+                clearRecursion(x+i, y+j, hwnd);
+
+                }
+            }
+            //std::cout << x << " " << y << std::endl;
+            //revealCell(x,y, hwnd);
+        }
+        /*else if(getNeighborsValue(x, y) == 0){
+            for(int i = -1; i <= 1; i++){
+                for(int j = -1; j <= 1; j++){
+                    clearRecursion(x + i, y + j, hwnd);
+                }
+            }
+
+        }*/
+    }
+
+}
+
+
+
+

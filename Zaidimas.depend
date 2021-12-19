@@ -5,3 +5,12 @@
 	<cstdio>
 	<iostream>
 
+1639931247 source:d:\programos\gitrepos\winapi-game\main.cpp
+	<tchar.h>
+	<windows.h>
+	<cstdio>
+	<iostream>
+	<stdlib.h>
+	<time.h>
+	<string>
+
