@@ -8,8 +8,8 @@
 #define MENU_EXIT_TO_MENU 2
 #define MENU_QUIT 3
 
-#define GRID_SIZE 20
-#define SCREEN_SIZE 700
+#define GRID_SIZE 30
+#define SCREEN_SIZE 800
 
 #include <tchar.h>
 #include <windows.h>
@@ -19,6 +19,8 @@
 #include <time.h>
 #include <string>
 #include <tchar.h>
+#include <sstream>
+#include "resource.h"
 
 void addToolbars(HWND hwnd);
 void handleClicks(HWND hwnd, WPARAM wParam);
@@ -76,7 +78,8 @@ int WINAPI WinMain (HINSTANCE hThisInstance,
     wincl.cbSize = sizeof (WNDCLASSEX);
 
     /* Use default icon and mouse-pointer */
-    wincl.hIcon = LoadIcon (NULL, IDI_APPLICATION);
+    HICON hWinIcon = LoadIcon(hThisInstance, MAKEINTRESOURCE(IDI_WINICON));
+    wincl.hIcon = hWinIcon;
     wincl.hIconSm = LoadIcon (NULL, IDI_APPLICATION);
 
     // default cursor
@@ -154,6 +157,11 @@ LRESULT CALLBACK WindowProcedure (HWND hwnd, UINT message, WPARAM wParam, LPARAM
 }
 
 void addToolbars(HWND hwnd){
+
+    HICON hWinIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_WINICON));
+    HICON hWinIconBig = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_WINICONBIG));
+    SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hWinIcon);
+    SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hWinIconBig);
     HMENU hMenu = CreateMenu();
     HMENU fileHMenu = CreateMenu();
     AppendMenu(fileHMenu, MF_STRING, MENU_NEW_GAME, "New Game");
@@ -185,6 +193,23 @@ void handleClicks(HWND hwnd, WPARAM wParam) {
 }
 
 void addMenu(HWND hwnd) {
+
+    HANDLE hFile;
+    hFile = CreateFile("data.txt", GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if(GetLastError() == 2){
+        hFile = CreateFile("data.txt", GENERIC_READ, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    }
+    DWORD nRead;
+    char readBuffer[20] = {0};
+    ReadFile(hFile, readBuffer, 20, &nRead, NULL);
+    if(nRead > 0) {
+        numberOfMines = atoi(readBuffer);
+    }
+    CloseHandle(hFile);
+    if(numberOfMines <= 0) {
+        numberOfMines = 1;
+    }
+
     TCHAR buf[20];
     _stprintf(buf, _T("%d"), numberOfMines);
 
@@ -441,4 +466,10 @@ void setNumberOfMines() {
             }
         }
     }
+
+    HANDLE hFile;
+    hFile = CreateFile("data.txt", GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    std::string str = std::to_string(numberOfMines);
+    WriteFile(hFile, str.c_str(), str.size(), NULL, NULL);
+    CloseHandle(hFile);
 }

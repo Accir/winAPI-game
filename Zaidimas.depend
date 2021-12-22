@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1640045526 source:d:\kita\univeras\windowsapi\zaidimas\main.cpp
+1640205128 source:d:\kita\univeras\windowsapi\zaidimas\main.cpp
 	<tchar.h>
 	<windows.h>
 	<cstdio>
@@ -8,6 +8,8 @@
 	<time.h>
 	<string>
 	<tchar.h>
+	<sstream>
+	"resource.h"
 
 1639931247 source:d:\programos\gitrepos\winapi-game\main.cpp
 	<tchar.h>
@@ -17,4 +19,9 @@
 	<stdlib.h>
 	<time.h>
 	<string>
+
+1640205254 source:d:\kita\univeras\windowsapi\zaidimas\resource.rc
+	"resource.h"
+
+1640205276 d:\kita\univeras\windowsapi\zaidimas\resource.h
 
